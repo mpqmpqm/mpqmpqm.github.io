@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Decaying Tempo Breath Timer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+          sans-serif;
+        background: #0f172a;
+        color: #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+      }
+      .card {
+        background: #020617;
+        border-radius: 1rem;
+        padding: 1.75rem 2rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        max-width: 420px;
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+      }
+      h1 {
+        font-size: 1.15rem;
+        margin: 0 0 0.75rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #93c5fd;
+      }
+      p {
+        margin: 0.25rem 0;
+        line-height: 1.4;
+        color: #cbd5f5;
+        font-size: 0.9rem;
+      }
+      .meta {
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-top: 0.75rem;
+      }
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+      }
+      button {
+        flex: 1;
+        border-radius: 999px;
+        padding: 0.6rem 1rem;
+        border: none;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: transform 0.08s ease, box-shadow 0.08s ease,
+          background 0.15s ease;
+      }
+      button.primary {
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        color: white;
+        box-shadow: 0 12px 20px rgba(59, 130, 246, 0.4);
+      }
+      button.secondary {
+        background: #111827;
+        color: #e5e7eb;
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.7);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+      button:not(:disabled):active {
+        transform: translateY(1px) scale(0.99);
+        box-shadow: 0 6px 10px rgba(15, 23, 42, 0.7);
+      }
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 1rem;
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+      .status-label {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.7rem;
+        color: #6b7280;
+      }
+      .status-value {
+        margin-top: 0.1rem;
+        font-size: 0.9rem;
+        color: #e5e7eb;
+      }
+      .status-group {
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Decaying Tempo Breath</h1>
+      <p>
+        10-minute click track that glides from <strong>60 → 50 BPM</strong>.
+        Press Start, then ride the pulse with your breath. No timers, no math.
+      </p>
+      <p class="meta">
+        Tip: Try 4 beats in / 4 out at the start, letting the exhale naturally
+        lengthen as the tempo slows.
+      </p>
+
+      <div class="controls">
+        <button id="startBtn" class="primary">Start Session</button>
+        <button id="stopBtn" class="secondary" disabled>Stop</button>
+      </div>
+
+      <div class="status-row">
+        <div class="status-group">
+          <div class="status-label">Status</div>
+          <div id="statusText" class="status-value">Idle</div>
+        </div>
+        <div class="status-group" style="text-align: right">
+          <div class="status-label">Elapsed</div>
+          <div id="timeText" class="status-value">00:00</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ---- Config ----
+      const SESSION_DURATION_SEC = 600; // 10 minutes
+      const START_BPM = 60;
+      const END_BPM = 50;
+
+      let audioCtx = null;
+      let isRunning = false;
+      let baseAudioTime = 0;
+      let wallStartTime = 0;
+      let rafId = null;
+
+      const startBtn = document.getElementById('startBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const statusText = document.getElementById('statusText');
+      const timeText = document.getElementById('timeText');
+
+      function formatTime(seconds) {
+        const s = Math.floor(seconds);
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+      }
+
+      function linearBpmAt(t) {
+        // t in [0, SESSION_DURATION_SEC]
+        const progress = Math.min(Math.max(t / SESSION_DURATION_SEC, 0), 1);
+        return START_BPM + (END_BPM - START_BPM) * progress;
+      }
+
+      function scheduleTick(time) {
+        // Short high beep using Web Audio
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.frequency.value = 2000; // click-ish
+        gain.gain.setValueAtTime(0.0, time);
+        gain.gain.linearRampToValueAtTime(0.6, time + 0.001);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(time);
+        osc.stop(time + 0.1);
+      }
+
+      function scheduleSession() {
+        const now = audioCtx.currentTime;
+        baseAudioTime = now + 0.1; // small offset to avoid race
+
+        let t = 0;
+        while (t < SESSION_DURATION_SEC) {
+          const bpm = linearBpmAt(t);
+          const interval = 60 / bpm; // seconds per beat
+          const clickTime = baseAudioTime + t;
+          scheduleTick(clickTime);
+          t += interval;
+        }
+      }
+
+      function updateUI() {
+        if (!isRunning) return;
+
+        const now = performance.now();
+        const elapsed = Math.min(
+          (now - wallStartTime) / 1000,
+          SESSION_DURATION_SEC
+        );
+        timeText.textContent = formatTime(elapsed);
+
+        if (elapsed >= SESSION_DURATION_SEC) {
+          statusText.textContent = 'Complete';
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          isRunning = false;
+          return;
+        }
+
+        statusText.textContent = 'Running';
+        rafId = requestAnimationFrame(updateUI);
+      }
+
+      function startSession() {
+        if (isRunning) return;
+
+        if (!audioCtx) {
+          // AudioContext must be created in response to a user gesture
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } else if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        // Reset UI & state
+        isRunning = true;
+        wallStartTime = performance.now();
+        timeText.textContent = '00:00';
+        statusText.textContent = 'Running';
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+
+        scheduleSession();
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(updateUI);
+      }
+
+      function stopSession() {
+        if (!audioCtx) return;
+
+        // Stop all scheduled audio by closing the context.
+        audioCtx.close();
+        audioCtx = null;
+
+        isRunning = false;
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        statusText.textContent = 'Stopped';
+        if (rafId) cancelAnimationFrame(rafId);
+      }
+
+      startBtn.addEventListener('click', startSession);
+      stopBtn.addEventListener('click', stopSession);
+    </script>
+  </body>
+</html>
