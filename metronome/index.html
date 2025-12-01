@@ -135,13 +135,20 @@
     <div class="card">
       <h1>Decaying Tempo Breath</h1>
       <p>
-        Click track that glides from <strong>60 → 50 BPM</strong>.
+        Click track that glides from start to end BPM.
         Press Start, then ride the pulse with your breath. No timers, no math.
       </p>
       <p class="meta">
         Tip: Try 4 beats in / 4 out at the start, letting the exhale naturally
         lengthen as the tempo slows.
       </p>
+
+      <div class="duration-row">
+        <label for="startBpmInput">Start BPM:</label>
+        <input type="number" id="startBpmInput" min="20" max="200" value="60" />
+        <label for="endBpmInput" style="margin-left: 0.5rem;">End BPM:</label>
+        <input type="number" id="endBpmInput" min="20" max="200" value="50" />
+      </div>
 
       <div class="duration-row">
         <label for="durationInput">Duration:</label>
@@ -168,8 +175,8 @@
 
     <script>
       // ---- Config ----
-      const START_BPM = 60;
-      const END_BPM = 50;
+      let startBpm = 60;
+      let endBpm = 50;
 
       let audioCtx = null;
       let isRunning = false;
@@ -183,6 +190,8 @@
       const statusText = document.getElementById('statusText');
       const timeText = document.getElementById('timeText');
       const durationInput = document.getElementById('durationInput');
+      const startBpmInput = document.getElementById('startBpmInput');
+      const endBpmInput = document.getElementById('endBpmInput');
 
       function formatTime(seconds) {
         const s = Math.floor(seconds);
@@ -194,7 +203,7 @@
       function linearBpmAt(t) {
         // t in [0, sessionDurationSec]
         const progress = Math.min(Math.max(t / sessionDurationSec, 0), 1);
-        return START_BPM + (END_BPM - START_BPM) * progress;
+        return startBpm + (endBpm - startBpm) * progress;
       }
 
       function scheduleTick(time) {
@@ -244,6 +253,8 @@
           stopBtn.disabled = true;
           isRunning = false;
           durationInput.disabled = false;
+          startBpmInput.disabled = false;
+          endBpmInput.disabled = false;
           return;
         }
 
@@ -258,6 +269,12 @@
         const minutes = Math.max(1, Math.min(60, parseInt(durationInput.value, 10) || 10));
         sessionDurationSec = minutes * 60;
         durationInput.value = minutes; // Update in case of invalid input
+
+        // Read BPM values from inputs
+        startBpm = Math.max(20, Math.min(200, parseInt(startBpmInput.value, 10) || 60));
+        endBpm = Math.max(20, Math.min(200, parseInt(endBpmInput.value, 10) || 50));
+        startBpmInput.value = startBpm;
+        endBpmInput.value = endBpm;
 
         if (!audioCtx) {
           // AudioContext must be created in response to a user gesture
@@ -274,6 +291,8 @@
         startBtn.disabled = true;
         stopBtn.disabled = false;
         durationInput.disabled = true;
+        startBpmInput.disabled = true;
+        endBpmInput.disabled = true;
 
         scheduleSession();
         if (rafId) cancelAnimationFrame(rafId);
@@ -291,6 +310,8 @@
         startBtn.disabled = false;
         stopBtn.disabled = true;
         durationInput.disabled = false;
+        startBpmInput.disabled = false;
+        endBpmInput.disabled = false;
         statusText.textContent = 'Stopped';
         if (rafId) cancelAnimationFrame(rafId);
       }
