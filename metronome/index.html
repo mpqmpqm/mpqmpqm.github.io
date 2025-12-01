@@ -101,19 +101,53 @@
       .status-group {
         flex: 1;
       }
+      .duration-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+      .duration-row label {
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+      .duration-row input {
+        width: 60px;
+        padding: 0.4rem 0.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        background: #111827;
+        color: #e5e7eb;
+        font-size: 0.9rem;
+        text-align: center;
+      }
+      .duration-row input:focus {
+        outline: none;
+        border-color: #6366f1;
+      }
+      .duration-row span {
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
     </style>
   </head>
   <body>
     <div class="card">
       <h1>Decaying Tempo Breath</h1>
       <p>
-        10-minute click track that glides from <strong>60 → 50 BPM</strong>.
+        Click track that glides from <strong>60 → 50 BPM</strong>.
         Press Start, then ride the pulse with your breath. No timers, no math.
       </p>
       <p class="meta">
         Tip: Try 4 beats in / 4 out at the start, letting the exhale naturally
         lengthen as the tempo slows.
       </p>
+
+      <div class="duration-row">
+        <label for="durationInput">Duration:</label>
+        <input type="number" id="durationInput" min="1" max="60" value="10" />
+        <span>minutes</span>
+      </div>
 
       <div class="controls">
         <button id="startBtn" class="primary">Start Session</button>
@@ -134,7 +168,6 @@
 
     <script>
       // ---- Config ----
-      const SESSION_DURATION_SEC = 600; // 10 minutes
       const START_BPM = 60;
       const END_BPM = 50;
 
@@ -143,11 +176,13 @@
       let baseAudioTime = 0;
       let wallStartTime = 0;
       let rafId = null;
+      let sessionDurationSec = 600; // default 10 minutes
 
       const startBtn = document.getElementById('startBtn');
       const stopBtn = document.getElementById('stopBtn');
       const statusText = document.getElementById('statusText');
       const timeText = document.getElementById('timeText');
+      const durationInput = document.getElementById('durationInput');
 
       function formatTime(seconds) {
         const s = Math.floor(seconds);
@@ -157,8 +192,8 @@
       }
 
       function linearBpmAt(t) {
-        // t in [0, SESSION_DURATION_SEC]
-        const progress = Math.min(Math.max(t / SESSION_DURATION_SEC, 0), 1);
+        // t in [0, sessionDurationSec]
+        const progress = Math.min(Math.max(t / sessionDurationSec, 0), 1);
         return START_BPM + (END_BPM - START_BPM) * progress;
       }
 
@@ -184,7 +219,7 @@
         baseAudioTime = now + 0.1; // small offset to avoid race
 
         let t = 0;
-        while (t < SESSION_DURATION_SEC) {
+        while (t < sessionDurationSec) {
           const bpm = linearBpmAt(t);
           const interval = 60 / bpm; // seconds per beat
           const clickTime = baseAudioTime + t;
@@ -199,15 +234,16 @@
         const now = performance.now();
         const elapsed = Math.min(
           (now - wallStartTime) / 1000,
-          SESSION_DURATION_SEC
+          sessionDurationSec
         );
         timeText.textContent = formatTime(elapsed);
 
-        if (elapsed >= SESSION_DURATION_SEC) {
+        if (elapsed >= sessionDurationSec) {
           statusText.textContent = 'Complete';
           startBtn.disabled = false;
           stopBtn.disabled = true;
           isRunning = false;
+          durationInput.disabled = false;
           return;
         }
 
@@ -217,6 +253,11 @@
 
       function startSession() {
         if (isRunning) return;
+
+        // Read duration from input
+        const minutes = Math.max(1, Math.min(60, parseInt(durationInput.value, 10) || 10));
+        sessionDurationSec = minutes * 60;
+        durationInput.value = minutes; // Update in case of invalid input
 
         if (!audioCtx) {
           // AudioContext must be created in response to a user gesture
@@ -232,6 +273,7 @@
         statusText.textContent = 'Running';
         startBtn.disabled = true;
         stopBtn.disabled = false;
+        durationInput.disabled = true;
 
         scheduleSession();
         if (rafId) cancelAnimationFrame(rafId);
@@ -248,6 +290,7 @@
         isRunning = false;
         startBtn.disabled = false;
         stopBtn.disabled = true;
+        durationInput.disabled = false;
         statusText.textContent = 'Stopped';
         if (rafId) cancelAnimationFrame(rafId);
       }
