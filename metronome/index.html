@@ -184,6 +184,36 @@
       let wallStartTime = 0;
       let rafId = null;
       let sessionDurationSec = 600; // default 10 minutes
+      let wakeLock = null;
+
+      // Request wake lock to prevent phone from sleeping during session
+      async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+          try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => {
+              wakeLock = null;
+            });
+          } catch (err) {
+            // Wake lock request failed (e.g., low battery mode)
+            console.log('Wake lock request failed:', err.message);
+          }
+        }
+      }
+
+      async function releaseWakeLock() {
+        if (wakeLock) {
+          await wakeLock.release();
+          wakeLock = null;
+        }
+      }
+
+      // Re-acquire wake lock when page becomes visible again
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && isRunning && !wakeLock) {
+          await requestWakeLock();
+        }
+      });
 
       const startBtn = document.getElementById('startBtn');
       const stopBtn = document.getElementById('stopBtn');
@@ -255,6 +285,7 @@
           durationInput.disabled = false;
           startBpmInput.disabled = false;
           endBpmInput.disabled = false;
+          releaseWakeLock();
           return;
         }
 
@@ -262,8 +293,11 @@
         rafId = requestAnimationFrame(updateUI);
       }
 
-      function startSession() {
+      async function startSession() {
         if (isRunning) return;
+
+        // Request wake lock to keep screen on
+        await requestWakeLock();
 
         // Read duration from input
         const minutes = Math.max(1, Math.min(60, parseInt(durationInput.value, 10) || 10));
@@ -299,7 +333,7 @@
         rafId = requestAnimationFrame(updateUI);
       }
 
-      function stopSession() {
+      async function stopSession() {
         if (!audioCtx) return;
 
         // Stop all scheduled audio by closing the context.
@@ -314,6 +348,7 @@
         endBpmInput.disabled = false;
         statusText.textContent = 'Stopped';
         if (rafId) cancelAnimationFrame(rafId);
+        await releaseWakeLock();
       }
 
       startBtn.addEventListener('click', startSession);
