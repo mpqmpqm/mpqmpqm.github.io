@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Decaying Tempo Gong</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+          sans-serif;
+        background: #0f172a;
+        color: #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+      }
+      .card {
+        background: #020617;
+        border-radius: 1rem;
+        padding: 1.75rem 2rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        max-width: 420px;
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+      }
+      h1 {
+        font-size: 1.15rem;
+        margin: 0 0 0.75rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #93c5fd;
+      }
+      p {
+        margin: 0.25rem 0;
+        line-height: 1.4;
+        color: #cbd5f5;
+        font-size: 0.9rem;
+      }
+      .meta {
+        font-size: 0.8rem;
+        color: #9ca3af;
+        margin-top: 0.75rem;
+      }
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+      }
+      button {
+        flex: 1;
+        border-radius: 999px;
+        padding: 0.6rem 1rem;
+        border: none;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: transform 0.08s ease, box-shadow 0.08s ease,
+          background 0.15s ease;
+      }
+      button.primary {
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        color: white;
+        box-shadow: 0 12px 20px rgba(59, 130, 246, 0.4);
+      }
+      button.secondary {
+        background: #111827;
+        color: #e5e7eb;
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.7);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+      button:not(:disabled):active {
+        transform: translateY(1px) scale(0.99);
+        box-shadow: 0 6px 10px rgba(15, 23, 42, 0.7);
+      }
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 1rem;
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+      .status-label {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.7rem;
+        color: #6b7280;
+      }
+      .status-value {
+        margin-top: 0.1rem;
+        font-size: 0.9rem;
+        color: #e5e7eb;
+      }
+      .status-group {
+        flex: 1;
+      }
+      .duration-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+      .duration-row label {
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+      .duration-row input {
+        width: 60px;
+        padding: 0.4rem 0.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        background: #111827;
+        color: #e5e7eb;
+        font-size: 0.9rem;
+        text-align: center;
+      }
+      .duration-row input:focus {
+        outline: none;
+        border-color: #6366f1;
+      }
+      .duration-row span {
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Decaying Tempo Gong</h1>
+      <p>
+        A gong sounds every fourth beat as the tempo glides from start to end
+        BPM. Breathe with the pulse; let the gong mark each full cycle.
+      </p>
+      <p class="meta">
+        Tip: Inhale for 4 beats, exhale for 4 beats. The gong rings at each
+        transition.
+      </p>
+
+      <div class="duration-row">
+        <label for="startBpmInput">Start BPM:</label>
+        <input type="number" id="startBpmInput" min="20" max="200" value="60" />
+        <label for="endBpmInput" style="margin-left: 0.5rem;">End BPM:</label>
+        <input type="number" id="endBpmInput" min="20" max="200" value="50" />
+      </div>
+
+      <div class="duration-row">
+        <label for="durationInput">Duration:</label>
+        <input type="number" id="durationInput" min="1" max="60" value="10" />
+        <span>minutes</span>
+      </div>
+
+      <div class="controls">
+        <button id="startBtn" class="primary">Start Session</button>
+        <button id="stopBtn" class="secondary" disabled>Stop</button>
+      </div>
+
+      <div class="status-row">
+        <div class="status-group">
+          <div class="status-label">Status</div>
+          <div id="statusText" class="status-value">Idle</div>
+        </div>
+        <div class="status-group" style="text-align: right">
+          <div class="status-label">Elapsed</div>
+          <div id="timeText" class="status-value">00:00</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ---- Config ----
+      let startBpm = 60;
+      let endBpm = 50;
+
+      let audioCtx = null;
+      let isRunning = false;
+      let baseAudioTime = 0;
+      let wallStartTime = 0;
+      let rafId = null;
+      let sessionDurationSec = 600; // default 10 minutes
+      let wakeLock = null;
+
+      // ---- Gong sound definitions ----
+      // Two alternating gong timbres using FM synthesis.
+      // A gong is characterised by inharmonic partials, so we use
+      // non-integer carrier:modulator ratios (Chowning's technique).
+      // Each gong spec has multiple FM partials layered together.
+      const gongA = {
+        // Deeper, rounder gong
+        fundamental: 130,
+        partials: [
+          { freqRatio: 1.0,  c2m: 1.4,  index: 0.95, gain: 0.50, decay: 3.0 },
+          { freqRatio: 2.76, c2m: 1.4,  index: 0.70, gain: 0.20, decay: 2.0 },
+          { freqRatio: 5.4,  c2m: 1.4,  index: 0.50, gain: 0.08, decay: 1.2 },
+        ],
+      };
+
+      const gongB = {
+        // Brighter, slightly higher gong
+        fundamental: 155,
+        partials: [
+          { freqRatio: 1.0,  c2m: 1.47, index: 1.05, gain: 0.45, decay: 2.8 },
+          { freqRatio: 2.33, c2m: 1.47, index: 0.75, gain: 0.22, decay: 1.8 },
+          { freqRatio: 4.7,  c2m: 1.47, index: 0.55, gain: 0.10, decay: 1.0 },
+        ],
+      };
+
+      // ---- Wake Lock ----
+      async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+          try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            wakeLock.addEventListener('release', () => {
+              wakeLock = null;
+            });
+          } catch (err) {
+            console.log('Wake lock request failed:', err.message);
+          }
+        }
+      }
+
+      async function releaseWakeLock() {
+        if (wakeLock) {
+          await wakeLock.release();
+          wakeLock = null;
+        }
+      }
+
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && isRunning && !wakeLock) {
+          await requestWakeLock();
+        }
+      });
+
+      // ---- DOM ----
+      const startBtn = document.getElementById('startBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const statusText = document.getElementById('statusText');
+      const timeText = document.getElementById('timeText');
+      const durationInput = document.getElementById('durationInput');
+      const startBpmInput = document.getElementById('startBpmInput');
+      const endBpmInput = document.getElementById('endBpmInput');
+
+      function formatTime(seconds) {
+        const s = Math.floor(seconds);
+        const m = Math.floor(s / 60);
+        const r = s % 60;
+        return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+      }
+
+      function linearBpmAt(t) {
+        const progress = Math.min(Math.max(t / sessionDurationSec, 0), 1);
+        return startBpm + (endBpm - startBpm) * progress;
+      }
+
+      // ---- FM Gong Synthesis ----
+      // Each partial is an FM voice: a sine carrier modulated by a sine
+      // modulator.  The modulator frequency = carrier * c2m.  The modulator
+      // amplitude = carrier * index, and decays alongside the carrier gain
+      // so that brightness fades with volume (natural instrument behaviour).
+      function scheduleGong(time, spec) {
+        const fund = spec.fundamental;
+
+        for (const p of spec.partials) {
+          const carrierFreq = fund * p.freqRatio;
+          const modFreq = carrierFreq * p.c2m;
+          const modAmp = carrierFreq * p.index;
+
+          // Modulator oscillator
+          const mod = audioCtx.createOscillator();
+          const modGain = audioCtx.createGain();
+          mod.type = 'sine';
+          mod.frequency.value = modFreq;
+          modGain.gain.setValueAtTime(modAmp, time);
+          modGain.gain.exponentialRampToValueAtTime(0.001, time + p.decay);
+          mod.connect(modGain);
+
+          // Carrier oscillator — modulator feeds into its frequency
+          const carrier = audioCtx.createOscillator();
+          const carrierGain = audioCtx.createGain();
+          carrier.type = 'sine';
+          carrier.frequency.value = carrierFreq;
+          modGain.connect(carrier.frequency); // FM connection
+
+          carrierGain.gain.setValueAtTime(p.gain, time);
+          carrierGain.gain.exponentialRampToValueAtTime(0.0001, time + p.decay);
+
+          carrier.connect(carrierGain);
+          carrierGain.connect(audioCtx.destination);
+
+          mod.start(time);
+          mod.stop(time + p.decay + 0.05);
+          carrier.start(time);
+          carrier.stop(time + p.decay + 0.05);
+        }
+      }
+
+      function scheduleSession() {
+        const now = audioCtx.currentTime;
+        baseAudioTime = now + 0.1;
+
+        let t = 0;
+        let beatCount = 0;
+        let gongIndex = 0; // alternates between 0 and 1
+
+        while (t < sessionDurationSec) {
+          const bpm = linearBpmAt(t);
+          const interval = 60 / bpm;
+
+          // Sound the gong on every 4th beat (beats 0, 4, 8, …)
+          if (beatCount % 4 === 0) {
+            const gongTime = baseAudioTime + t;
+            const spec = gongIndex === 0 ? gongA : gongB;
+            scheduleGong(gongTime, spec);
+            gongIndex = 1 - gongIndex; // alternate
+          }
+
+          beatCount++;
+          t += interval;
+        }
+      }
+
+      // ---- UI update loop ----
+      function updateUI() {
+        if (!isRunning) return;
+
+        const now = performance.now();
+        const elapsed = Math.min(
+          (now - wallStartTime) / 1000,
+          sessionDurationSec
+        );
+        timeText.textContent = formatTime(elapsed);
+
+        if (elapsed >= sessionDurationSec) {
+          statusText.textContent = 'Complete';
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          isRunning = false;
+          durationInput.disabled = false;
+          startBpmInput.disabled = false;
+          endBpmInput.disabled = false;
+          releaseWakeLock();
+          return;
+        }
+
+        statusText.textContent = 'Running';
+        rafId = requestAnimationFrame(updateUI);
+      }
+
+      // ---- Session control ----
+      async function startSession() {
+        if (isRunning) return;
+
+        await requestWakeLock();
+
+        const minutes = Math.max(1, Math.min(60, parseInt(durationInput.value, 10) || 10));
+        sessionDurationSec = minutes * 60;
+        durationInput.value = minutes;
+
+        startBpm = Math.max(20, Math.min(200, parseInt(startBpmInput.value, 10) || 60));
+        endBpm = Math.max(20, Math.min(200, parseInt(endBpmInput.value, 10) || 50));
+        startBpmInput.value = startBpm;
+        endBpmInput.value = endBpm;
+
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } else if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        isRunning = true;
+        wallStartTime = performance.now();
+        timeText.textContent = '00:00';
+        statusText.textContent = 'Running';
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        durationInput.disabled = true;
+        startBpmInput.disabled = true;
+        endBpmInput.disabled = true;
+
+        scheduleSession();
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(updateUI);
+      }
+
+      async function stopSession() {
+        if (!audioCtx) return;
+
+        audioCtx.close();
+        audioCtx = null;
+
+        isRunning = false;
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        durationInput.disabled = false;
+        startBpmInput.disabled = false;
+        endBpmInput.disabled = false;
+        statusText.textContent = 'Stopped';
+        if (rafId) cancelAnimationFrame(rafId);
+        await releaseWakeLock();
+      }
+
+      startBtn.addEventListener('click', startSession);
+      stopBtn.addEventListener('click', stopSession);
+    </script>
+  </body>
+</html>
