@@ -236,21 +236,42 @@
         return startBpm + (endBpm - startBpm) * progress;
       }
 
-      function scheduleTick(time) {
-        // Short high beep using Web Audio
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
+      function scheduleTick(time, isFourthBeat) {
+        // Warm, rounded tick: sine fundamental plus a soft octave overtone,
+        // with a gentle downward pitch bend and a short natural decay.
+        // The fourth beat of each group sits a fourth lower (E5 vs A5)
+        // to subtly mark the unit of four.
+        const fundamental = isFourthBeat ? 659.25 : 880;
+        const decay = 0.18;
 
-        osc.frequency.value = 2000; // click-ish
-        gain.gain.setValueAtTime(0.0, time);
-        gain.gain.linearRampToValueAtTime(0.6, time + 0.001);
-        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+        const envelope = audioCtx.createGain();
+        envelope.gain.setValueAtTime(0.0, time);
+        envelope.gain.linearRampToValueAtTime(0.5, time + 0.003);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + decay);
+        envelope.connect(audioCtx.destination);
 
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
+        const partials = [
+          { ratio: 1, level: 1 },
+          { ratio: 2, level: 0.25 },
+        ];
+        for (const { ratio, level } of partials) {
+          const osc = audioCtx.createOscillator();
+          const oscGain = audioCtx.createGain();
 
-        osc.start(time);
-        osc.stop(time + 0.1);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(fundamental * ratio, time);
+          osc.frequency.exponentialRampToValueAtTime(
+            fundamental * ratio * 0.8,
+            time + decay
+          );
+          oscGain.gain.value = level;
+
+          osc.connect(oscGain);
+          oscGain.connect(envelope);
+
+          osc.start(time);
+          osc.stop(time + decay + 0.05);
+        }
       }
 
       function scheduleSession() {
@@ -258,11 +279,13 @@
         baseAudioTime = now + 0.1; // small offset to avoid race
 
         let t = 0;
+        let beat = 0;
         while (t < sessionDurationSec) {
           const bpm = linearBpmAt(t);
           const interval = 60 / bpm; // seconds per beat
           const clickTime = baseAudioTime + t;
-          scheduleTick(clickTime);
+          scheduleTick(clickTime, beat % 4 === 3);
+          beat += 1;
           t += interval;
         }
       }
