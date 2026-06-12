@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Click Lab</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+          sans-serif;
+        background: #0f172a;
+        color: #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 1rem 0;
+      }
+      .card {
+        background: #020617;
+        border-radius: 1rem;
+        padding: 1.75rem 2rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        max-width: 460px;
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+      }
+      h1 {
+        font-size: 1.15rem;
+        margin: 0 0 0.75rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #93c5fd;
+      }
+      p {
+        margin: 0.25rem 0;
+        line-height: 1.4;
+        color: #cbd5f5;
+        font-size: 0.9rem;
+      }
+      .presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+      button {
+        border-radius: 999px;
+        padding: 0.5rem 0.9rem;
+        border: none;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 500;
+      }
+      button.preset {
+        background: #111827;
+        color: #e5e7eb;
+        border: 1px solid rgba(148, 163, 184, 0.6);
+      }
+      button.preset.active {
+        border-color: #6366f1;
+        color: #c7d2fe;
+      }
+      button.primary {
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        color: white;
+        flex: 1;
+      }
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+      }
+      .slider-row {
+        display: grid;
+        grid-template-columns: 9.5rem 1fr 3.5rem;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.6rem;
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+      .slider-row output {
+        text-align: right;
+        color: #e5e7eb;
+        font-variant-numeric: tabular-nums;
+      }
+      input[type='range'] {
+        width: 100%;
+        accent-color: #6366f1;
+      }
+      .dots {
+        display: flex;
+        gap: 0.6rem;
+        justify-content: center;
+        margin-top: 1.25rem;
+      }
+      .dot {
+        width: 0.8rem;
+        height: 0.8rem;
+        border-radius: 50%;
+        background: #1e293b;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        transition: background 0.05s ease;
+      }
+      .dot.on {
+        background: #38bdf8;
+      }
+      .dot.on.accent {
+        background: #f59e0b;
+      }
+      pre {
+        background: #111827;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        border-radius: 0.5rem;
+        padding: 0.6rem 0.8rem;
+        font-size: 0.75rem;
+        color: #a5b4fc;
+        overflow-x: auto;
+        margin: 1rem 0 0;
+      }
+      .copy-row {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 0.5rem;
+      }
+      button.copy {
+        background: #111827;
+        color: #9ca3af;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Click Lab</h1>
+      <p>
+        Audition metronome clicks. Pick a preset, tweak the sliders, then copy
+        the settings block and report it back.
+      </p>
+
+      <div class="presets" id="presets"></div>
+
+      <div class="controls">
+        <button id="playBtn" class="primary">Play</button>
+        <button id="tapBtn" class="preset">Single tick + accent</button>
+      </div>
+
+      <div class="slider-row">
+        <label for="bpm">BPM</label>
+        <input type="range" id="bpm" min="40" max="200" value="60" />
+        <output for="bpm">60</output>
+      </div>
+      <div class="slider-row">
+        <label for="f0">Fundamental (Hz)</label>
+        <input type="range" id="f0" min="500" max="2400" value="1175" />
+        <output for="f0">1175</output>
+      </div>
+      <div class="slider-row">
+        <label for="decay">Body decay (ms)</label>
+        <input type="range" id="decay" min="20" max="300" value="90" />
+        <output for="decay">90</output>
+      </div>
+      <div class="slider-row">
+        <label for="strike">Strike noise (0&ndash;1)</label>
+        <input type="range" id="strike" min="0" max="100" value="30" />
+        <output for="strike">0.30</output>
+      </div>
+      <div class="slider-row">
+        <label for="brightness">Brightness (0&ndash;2)</label>
+        <input type="range" id="brightness" min="0" max="200" value="100" />
+        <output for="brightness">1.00</output>
+      </div>
+      <div class="slider-row">
+        <label for="accent">Accent offset (semitones)</label>
+        <input type="range" id="accent" min="-12" max="12" value="-5" />
+        <output for="accent">-5</output>
+      </div>
+
+      <div class="dots" id="dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot accent"></div>
+      </div>
+
+      <pre id="readout"></pre>
+      <div class="copy-row">
+        <button id="copyBtn" class="copy">Copy settings</button>
+      </div>
+    </div>
+
+    <script>
+      const params = {
+        preset: 'woodblock',
+        bpm: 60,
+        f0: 1175,
+        decayMs: 90,
+        strike: 0.3,
+        brightness: 1,
+        accentSemitones: -5,
+        // Timbre internals, set by presets (not slider-bound):
+        ratios: [1, 2.756, 5.404],
+        levels: [0.4, 0.16, 0.06],
+        droop: 0, // fractional downward pitch glide over the decay
+      };
+
+      const presets = {
+        woodblock: {
+          label: 'A — Woodblock (current)',
+          f0: 1175,
+          decayMs: 90,
+          strike: 0.3,
+          brightness: 1,
+          accentSemitones: -5,
+          ratios: [1, 2.756, 5.404],
+          levels: [0.4, 0.16, 0.06],
+          droop: 0,
+        },
+        studio: {
+          label: 'B — Studio click',
+          f0: 2000,
+          decayMs: 30,
+          strike: 0.5,
+          brightness: 0.6,
+          accentSemitones: -7,
+          ratios: [1, 1.5],
+          levels: [0.45, 0.12],
+          droop: 0,
+        },
+        marimba: {
+          label: 'C — Warm marimba',
+          f0: 1000,
+          decayMs: 150,
+          strike: 0.12,
+          brightness: 0.8,
+          accentSemitones: -5,
+          ratios: [1, 4, 10],
+          levels: [0.45, 0.1, 0.03],
+          droop: 0,
+        },
+        caterpillar: {
+          label: 'D — v1 (reference)',
+          f0: 880,
+          decayMs: 180,
+          strike: 0,
+          brightness: 1,
+          accentSemitones: -5,
+          ratios: [1, 2],
+          levels: [0.4, 0.1],
+          droop: 0.2,
+        },
+      };
+
+      let ctx = null;
+      let running = false;
+      let nextBeatTime = 0;
+      let beatIndex = 0;
+      let schedulerId = null;
+      let pendingFlashes = []; // { time, index }
+
+      function ensureCtx() {
+        if (!ctx) {
+          ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (ctx.state === 'suspended') ctx.resume();
+        return ctx;
+      }
+
+      let noiseBuffer = null;
+      function getNoiseBuffer() {
+        if (!noiseBuffer || noiseBuffer.sampleRate !== ctx.sampleRate) {
+          const length = Math.ceil(ctx.sampleRate * 0.02);
+          noiseBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
+          const data = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+        }
+        return noiseBuffer;
+      }
+
+      function click(time, accent) {
+        const f0 =
+          params.f0 *
+          Math.pow(2, accent ? params.accentSemitones / 12 : 0);
+        const baseDecay = params.decayMs / 1000;
+
+        params.ratios.forEach((ratio, i) => {
+          const level =
+            params.levels[i] * (i === 0 ? 1 : params.brightness);
+          if (level < 0.001) return;
+          // Higher partials die faster, like a struck bar.
+          const decay = baseDecay * Math.pow(0.65, i);
+
+          const osc = ctx.createOscillator();
+          const env = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f0 * ratio, time);
+          if (params.droop > 0) {
+            osc.frequency.exponentialRampToValueAtTime(
+              f0 * ratio * (1 - params.droop),
+              time + decay
+            );
+          }
+          env.gain.setValueAtTime(0, time);
+          env.gain.linearRampToValueAtTime(level, time + 0.0015);
+          env.gain.exponentialRampToValueAtTime(0.0001, time + decay);
+          osc.connect(env);
+          env.connect(ctx.destination);
+          osc.start(time);
+          osc.stop(time + decay + 0.02);
+        });
+
+        if (params.strike > 0.001) {
+          const noise = ctx.createBufferSource();
+          noise.buffer = getNoiseBuffer();
+          const bandpass = ctx.createBiquadFilter();
+          bandpass.type = 'bandpass';
+          bandpass.frequency.value = 3000;
+          bandpass.Q.value = 0.8;
+          const env = ctx.createGain();
+          env.gain.setValueAtTime(params.strike, time);
+          env.gain.exponentialRampToValueAtTime(0.0001, time + 0.01);
+          noise.connect(bandpass);
+          bandpass.connect(env);
+          env.connect(ctx.destination);
+          noise.start(time);
+          noise.stop(time + 0.02);
+        }
+      }
+
+      // Short-lookahead scheduler so slider changes apply immediately.
+      function schedulerTick() {
+        const horizon = ctx.currentTime + 0.1;
+        while (nextBeatTime < horizon) {
+          const accent = beatIndex % 4 === 3;
+          click(nextBeatTime, accent);
+          pendingFlashes.push({ time: nextBeatTime, index: beatIndex % 4 });
+          nextBeatTime += 60 / params.bpm;
+          beatIndex += 1;
+        }
+      }
+
+      const dots = Array.from(document.querySelectorAll('.dot'));
+      function flashLoop() {
+        if (!running) return;
+        const now = ctx.currentTime;
+        while (pendingFlashes.length && pendingFlashes[0].time <= now) {
+          const { index } = pendingFlashes.shift();
+          dots.forEach((d, i) => d.classList.toggle('on', i === index));
+        }
+        requestAnimationFrame(flashLoop);
+      }
+
+      const playBtn = document.getElementById('playBtn');
+      function togglePlay() {
+        if (running) {
+          running = false;
+          clearInterval(schedulerId);
+          pendingFlashes = [];
+          dots.forEach((d) => d.classList.remove('on'));
+          playBtn.textContent = 'Play';
+          return;
+        }
+        ensureCtx();
+        running = true;
+        beatIndex = 0;
+        nextBeatTime = ctx.currentTime + 0.1;
+        schedulerId = setInterval(schedulerTick, 25);
+        requestAnimationFrame(flashLoop);
+        playBtn.textContent = 'Stop';
+      }
+
+      function tapOnce() {
+        ensureCtx();
+        const now = ctx.currentTime + 0.05;
+        click(now, false);
+        click(now + 0.6, true);
+      }
+
+      const sliders = [
+        { id: 'bpm', key: 'bpm', scale: 1, fmt: (v) => String(v) },
+        { id: 'f0', key: 'f0', scale: 1, fmt: (v) => String(v) },
+        { id: 'decay', key: 'decayMs', scale: 1, fmt: (v) => String(v) },
+        { id: 'strike', key: 'strike', scale: 0.01, fmt: (v) => v.toFixed(2) },
+        {
+          id: 'brightness',
+          key: 'brightness',
+          scale: 0.01,
+          fmt: (v) => v.toFixed(2),
+        },
+        { id: 'accent', key: 'accentSemitones', scale: 1, fmt: (v) => String(v) },
+      ];
+
+      const readout = document.getElementById('readout');
+      function updateReadout() {
+        const { preset, bpm, f0, decayMs, strike, brightness, accentSemitones } =
+          params;
+        readout.textContent = JSON.stringify(
+          { preset, bpm, f0, decayMs, strike, brightness, accentSemitones },
+          null,
+          2
+        );
+      }
+
+      sliders.forEach(({ id, key, scale, fmt }) => {
+        const input = document.getElementById(id);
+        const output = document.querySelector(`output[for="${id}"]`);
+        input.addEventListener('input', () => {
+          const value = Number(input.value) * scale;
+          params[key] = value;
+          params.preset = 'custom';
+          output.textContent = fmt(value);
+          updateReadout();
+          markActivePreset();
+        });
+      });
+
+      function syncSliders() {
+        sliders.forEach(({ id, key, scale, fmt }) => {
+          const input = document.getElementById(id);
+          const output = document.querySelector(`output[for="${id}"]`);
+          input.value = String(Math.round(params[key] / scale));
+          output.textContent = fmt(params[key]);
+        });
+      }
+
+      const presetContainer = document.getElementById('presets');
+      function markActivePreset() {
+        Array.from(presetContainer.children).forEach((btn) =>
+          btn.classList.toggle('active', btn.dataset.key === params.preset)
+        );
+      }
+
+      Object.entries(presets).forEach(([key, preset]) => {
+        const btn = document.createElement('button');
+        btn.className = 'preset';
+        btn.dataset.key = key;
+        btn.textContent = preset.label;
+        btn.addEventListener('click', () => {
+          Object.assign(params, preset, { preset: key });
+          syncSliders();
+          updateReadout();
+          markActivePreset();
+        });
+        presetContainer.appendChild(btn);
+      });
+
+      document.getElementById('copyBtn').addEventListener('click', () => {
+        navigator.clipboard.writeText(readout.textContent);
+      });
+
+      playBtn.addEventListener('click', togglePlay);
+      document.getElementById('tapBtn').addEventListener('click', tapOnce);
+
+      syncSliders();
+      updateReadout();
+      markActivePreset();
+    </script>
+  </body>
+</html>

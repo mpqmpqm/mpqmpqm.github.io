@@ -236,42 +236,71 @@
         return startBpm + (endBpm - startBpm) * progress;
       }
 
-      function scheduleTick(time, isFourthBeat) {
-        // Warm, rounded tick: sine fundamental plus a soft octave overtone,
-        // with a gentle downward pitch bend and a short natural decay.
-        // The fourth beat of each group sits a fourth lower (E5 vs A5)
-        // to subtly mark the unit of four.
-        const fundamental = isFourthBeat ? 659.25 : 880;
-        const decay = 0.18;
+      // Shared white-noise buffer for the strike transient, rebuilt
+      // whenever the AudioContext is recreated after a stop.
+      let noiseBuffer = null;
+      let noiseBufferCtx = null;
+      function getNoiseBuffer() {
+        if (noiseBufferCtx !== audioCtx) {
+          const length = Math.ceil(audioCtx.sampleRate * 0.02);
+          noiseBuffer = audioCtx.createBuffer(1, length, audioCtx.sampleRate);
+          const data = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+          noiseBufferCtx = audioCtx;
+        }
+        return noiseBuffer;
+      }
 
-        const envelope = audioCtx.createGain();
-        envelope.gain.setValueAtTime(0.0, time);
-        envelope.gain.linearRampToValueAtTime(0.5, time + 0.003);
-        envelope.gain.exponentialRampToValueAtTime(0.0001, time + decay);
-        envelope.connect(audioCtx.destination);
+      function scheduleTick(time, isFourthBeat) {
+        // Woodblock-style tick, tuned for phone speakers (which roll off
+        // below ~1 kHz) and the ear's 2-4 kHz sensitivity peak:
+        // struck-bar partials (1 : 2.756 : 5.404) put energy across
+        // several critical bands so the click reads as loud and whole,
+        // a band-passed noise burst supplies the strike consonant, and
+        // a ~1.5 ms attack keeps the beat placement crisp.
+        // The fourth beat of each group sits a fourth lower (A5 vs D6)
+        // to subtly mark the unit of four.
+        const f0 = isFourthBeat ? 880 : 1174.66;
 
         const partials = [
-          { ratio: 1, level: 1 },
-          { ratio: 2, level: 0.25 },
+          { ratio: 1, level: 0.4, decay: 0.09 },
+          { ratio: 2.756, level: 0.16, decay: 0.055 },
+          { ratio: 5.404, level: 0.06, decay: 0.03 },
         ];
-        for (const { ratio, level } of partials) {
+        for (const { ratio, level, decay } of partials) {
           const osc = audioCtx.createOscillator();
-          const oscGain = audioCtx.createGain();
+          const env = audioCtx.createGain();
 
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(fundamental * ratio, time);
-          osc.frequency.exponentialRampToValueAtTime(
-            fundamental * ratio * 0.8,
-            time + decay
-          );
-          oscGain.gain.value = level;
+          osc.frequency.value = f0 * ratio;
+          env.gain.setValueAtTime(0.0, time);
+          env.gain.linearRampToValueAtTime(level, time + 0.0015);
+          env.gain.exponentialRampToValueAtTime(0.0001, time + decay);
 
-          osc.connect(oscGain);
-          oscGain.connect(envelope);
+          osc.connect(env);
+          env.connect(audioCtx.destination);
 
           osc.start(time);
-          osc.stop(time + decay + 0.05);
+          osc.stop(time + decay + 0.02);
         }
+
+        // Strike transient: 10 ms of noise band-passed around 3 kHz.
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = getNoiseBuffer();
+        const bandpass = audioCtx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 3000;
+        bandpass.Q.value = 0.8;
+        const noiseEnv = audioCtx.createGain();
+        noiseEnv.gain.setValueAtTime(0.3, time);
+        noiseEnv.gain.exponentialRampToValueAtTime(0.0001, time + 0.01);
+
+        noise.connect(bandpass);
+        bandpass.connect(noiseEnv);
+        noiseEnv.connect(audioCtx.destination);
+
+        noise.start(time);
+        noise.stop(time + 0.02);
       }
 
       function scheduleSession() {
